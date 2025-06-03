@@ -1,0 +1,50 @@
+name: Import User Repo 
+on:
+  workflow_dispatch:
+    inputs:
+      user_repo_url:
+        description: 'User GitHub Repo URL'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout current repo
+        uses: actions/checkout@v3
+
+      - name: Clone user repo
+        run: |
+          git clone ${{ github.event.inputs.user_repo_url }} user-repo
+
+      - name: Sync contents (exclude .git and preserve manifests)
+        run: |
+          # Clean everything except .github, README.md, manifests, and user-repo
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name '.git' \
+            ! -name '.github' \
+            ! -name 'README.md' \
+            ! -name 'manifests' \
+            ! -name 'user-repo' \
+            -exec rm -rf {} +
+
+          # Sync files from user-repo into root, exclude manifests overwrite
+          rsync -av --exclude='.git' --exclude='manifests' --exclude='.github' user-repo/ ./
+
+          rm -rf user-repo
+
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git add .
+          git commit -m "Sync from user repo (via webhook)" || echo "Nothing to commit"
+          git push origin main

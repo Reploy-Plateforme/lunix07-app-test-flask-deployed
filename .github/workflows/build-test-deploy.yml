@@ -1,0 +1,129 @@
+name: Build & Deploy
+
+on:
+  workflow_run:
+    workflows: ["Import User Repo"]
+    types:
+      - completed
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  
+jobs:
+  detect-and-build:
+    runs-on: ubuntu-latest
+
+    env:
+      COMMIT_SHA: ${{ github.sha }}  # Commit SHA for versioning
+      VERSION_TAG: latest  # Tag for the image (you can modify this if you need a versioning strategy)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Set IMAGE_NAME
+        run: |
+          REPO_NAME=$(basename "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/$REPO_NAME" >> $GITHUB_ENV
+
+
+      - name: Set APP_NAME from repo name
+        run: |
+          # Extract the app name from "user-appname-deployed"
+          FULL_NAME=$(basename "${GITHUB_REPOSITORY}")
+          APP_NAME=$(echo "$FULL_NAME" | sed -E 's/^user-(.*)-deployed$/\1/')
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+
+
+
+      - name: Detect language (supports nested folders)
+        id: language_detection
+        run: |
+          if find . -name "package.json" | grep -q .; then
+            echo "Detected Node.js"
+            echo "NODE=true" >> $GITHUB_ENV
+          elif find . -name "requirements.txt" | grep -q .; then
+            echo "Detected Python"
+            echo "PYTHON=true" >> $GITHUB_ENV
+          elif find . -name "pom.xml" | grep -q .; then
+            echo "Detected Java"
+            echo "JAVA=true" >> $GITHUB_ENV
+          elif [ -f "Dockerfile" ]; then
+            echo "Dockerfile already exists, skipping Dockerfile generation."
+            echo "DOCKER=true" >> $GITHUB_ENV
+          else
+            echo "Unknown language, skipping build."
+            echo "UNKNOWN=true" >> $GITHUB_ENV
+            exit 1
+          fi
+
+      - name: Build & Test (Node.js)
+        if: env.NODE == 'true'
+        run: |
+          echo "Building Node.js app"
+          npm install
+          npm test
+
+      - name: Build & Test (Python)
+        if: env.PYTHON == 'true'
+        run: |
+          echo "Building Python app"
+          pip install -r requirements.txt
+          pytest || echo "No tests found"
+
+      - name: Build & Test (Java)
+        if: env.JAVA == 'true'
+        run: |
+          echo "Building Java app"
+          mvn install
+          mvn test
+
+      - name: Generate Dockerfile (for Node.js)
+        if: env.NODE == 'true' && !env.DOCKER
+        run: |
+          echo "Creating Dockerfile for Node.js"
+          echo -e "FROM node:16\nWORKDIR /app\nCOPY . .\nRUN npm install\nCMD [\"npm\", \"start\"]" > Dockerfile
+
+      - name: Generate Dockerfile (for Python)
+        if: env.PYTHON == 'true' && !env.DOCKER
+        run: |
+          echo "Creating Dockerfile for Python"
+          echo -e "FROM python:3.9\nWORKDIR /app\nCOPY . .\nRUN pip install -r requirements.txt\nCMD [\"python\", \"main.py\"]" > Dockerfile
+
+      - name: Generate Dockerfile (for Java)
+        if: env.JAVA == 'true' && !env.DOCKER
+        run: |
+          echo "Creating Dockerfile for Java"
+          echo -e "FROM openjdk:11\nWORKDIR /app\nCOPY . .\nRUN mvn clean install\nCMD [\"java\", \"-jar\", \"target/app.jar\"]" > Dockerfile
+
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build -t $IMAGE_NAME:$VERSION_TAG -t $IMAGE_NAME:$COMMIT_SHA .
+
+      - name: Push Docker image to DockerHub
+        run: |
+          docker push $IMAGE_NAME:$COMMIT_SHA
+          
+      - name: Update Kubernetes manifests with new image tag and app name
+        run: |
+          DEPLOYMENT_FILE="manifests/deployment.yaml"
+          SERVICE_FILE="manifests/service.yaml"
+
+          # --- Deployment updates ---
+          sed -i "s/{{APP_NAME}}/$APP_NAME/g" $DEPLOYMENT_FILE
+          sed -i "s/{{APP_NAME}}/$APP_NAME/g" $SERVICE_FILE
+          sed -i "s|image: .*|image: $IMAGE_NAME:$COMMIT_SHA|g" $DEPLOYMENT_FILE
+
+          # --- Service updates ---
+          sed -i "s/name: .*-service/name: $APP_NAME-service/g" $SERVICE_FILE
+          sed -i "s/app: .*/app: $APP_NAME/g" $SERVICE_FILE
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add $DEPLOYMENT_FILE $SERVICE_FILE
+          git commit -m "Update deployment and service to $IMAGE_NAME:$COMMIT_SHA"
+          git push
