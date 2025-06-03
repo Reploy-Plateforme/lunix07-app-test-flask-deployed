@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{APP_NAME}}-service
+  name: lunix07-app-test-flask-deployed-service
   labels:
-    app: {{APP_NAME}}
+    app: lunix07-app-test-flask-deployed
 spec:
   selector:
-    app: {{APP_NAME}}
+    app: lunix07-app-test-flask-deployed
   ports:
     - protocol: TCP
       port: 80

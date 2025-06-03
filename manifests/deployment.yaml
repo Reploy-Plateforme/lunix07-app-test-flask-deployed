@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{APP_NAME}}-deployment
+  name: lunix07-app-test-flask-deployed-deployment
   labels:
-    app: {{APP_NAME}}
+    app: lunix07-app-test-flask-deployed
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: {{APP_NAME}}
+      app: lunix07-app-test-flask-deployed
   template:
     metadata:
       labels:
-        app: {{APP_NAME}}
+        app: lunix07-app-test-flask-deployed
     spec:
       containers:
-        - name: {{APP_NAME}}-container
-          image: ${{secrets.DOCKER_USERNAME}}/{{APP_NAME}}:{{IMAGE_TAG}}
+        - name: lunix07-app-test-flask-deployed-container
+          image: lunix007/lunix07-app-test-flask-deployed:59901e6d57a6b6cff12af7daa1a9972e26e30d1f
           ports:
             - containerPort: 80
           resources:
