@@ -1,20 +1,20 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{APP_NAME}}-ingress
-  namespace: {{APP_NAME}}
+  name: lunix07-app-test-flask-deployed-ingress
+  namespace: lunix07-app-test-flask-deployed
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   ingressClassName: nginx
   rules:
-  - host: {{APP_NAME}}.eastus.cloudapp.azure.com
+  - host: lunix07-app-test-flask-deployed.eastus.cloudapp.azure.com
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: {{APP_NAME}}-service
+            name: lunix07-app-test-flask-deployed-service
             port:
               number: 5000
