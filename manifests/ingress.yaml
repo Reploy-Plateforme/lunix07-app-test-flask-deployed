@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: lunix07-app-test-flask-deployed.eastus.cloudapp.azure.com
+  - host: app-test-flask.eastus.cloudapp.azure.com
     http:
       paths:
       - path: /
