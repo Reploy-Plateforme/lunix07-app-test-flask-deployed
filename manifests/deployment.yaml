@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: lunix07-app-test-flask-deployed-container
-          image: lunix007/lunix07-app-test-flask-deployed:59901e6d57a6b6cff12af7daa1a9972e26e30d1f
+          image: lunix007/lunix07-app-test-flask-deployed:b43e6f7b9e4066bb7eebcdda920ef24b52526207
           ports:
             - containerPort: 80
           resources:
